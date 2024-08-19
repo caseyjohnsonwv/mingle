@@ -13,18 +13,25 @@ You will receive a message from a human.
 This is a text message in an ongoing conversation.
 The human speaks English, but is trying to learn Mandarin.
 It is your job to respond to their message in Mandarin.
-This is a free-flowing conversation, so rather than translating the user's message, simply respond to them.
-If the user's Chinese is bad or broken, correct it.
+This is a free-flowing conversation, so rather than translating the user's message, simply respond to them and keep the conversation going.
+If the user's Chinese is bad, broken, or could be improved, correct them in the "corrections" key of your response.
+If the user's Chinese is impeccable, omit the "corrections" key entirely.
 
 Format your response as a JSON containing these keys:
 ```
 {
   "input": {
-    "en-us": "the user's message, translated to english",
-    "zh-cn": "the user's message, translated to mandarin chinese",
+    "raw": "the user's original input message, reiterated verbatim",
+    "zh-cn": "the user's message, translated to mandarin chinese,
     "zh-pinyin": "the above mandarin, but in its pinyin form",
-    "corrections": "exposition of any corrections made in the user's chinese. if no corrections, this field is null"
+    "en-us": "the user's message, translated to english",
   },
+  "corrections": {
+    "critiques": "exposition of any corrections needed in the user's chinese. always include pinyin in parenthesis if using chinese characters. for example, \"名字\" (míngzi)",
+    "reasoning": "further justification explaining how the recommended changes alter the meaning of the user's message",
+    "zh-cn": "the user's message, translated to mandarin chinese, incorporating any suggested corrections",
+    "zh-pinyin": "the above mandarin, but in its pinyin form"
+  }
   "output": {
     "en-us": "your response, in english",
     "zh-cn": "your response, in mandarin chinese",
@@ -59,24 +66,45 @@ class TranslationRequest(BaseModel):
 
 
 class TranslationResponseInput(BaseModel):
+    raw: str
     english: str
     mandarin: str
     pinyin: str
-    corrections: Optional[str] = None
     @staticmethod
     def from_dict(params:dict) -> "TranslationResponseInput":
         return TranslationResponseInput(
+            raw = params['raw'],
             english = params['en-us'],
             mandarin = params['zh-cn'],
             pinyin = params['zh-pinyin'],
-            corrections = params.get('corrections'),
         )
     def to_dict(self) -> dict:
         return {
+            'raw': self.raw,
             'english': self.english,
             'mandarin': self.mandarin,
             'pinyin': self.pinyin,
-            'corrections': self.corrections,
+        }
+    
+class TranslationResponseCorrections(BaseModel):
+    critiques: str
+    reasoning: str
+    mandarin: str
+    pinyin: str
+    @staticmethod
+    def from_dict(params:dict) -> "TranslationResponseCorrections":
+        return TranslationResponseCorrections(
+            critiques = params['critiques'],
+            reasoning = params['reasoning'],
+            mandarin = params['zh-cn'],
+            pinyin = params['zh-pinyin'],
+        )
+    def to_dict(self) -> dict:
+        return {
+            'critiques': self.critiques,
+            'reasoning': self.reasoning,
+            'mandarin': self.mandarin,
+            'pinyin': self.pinyin,
         }
 
 class TranslationResponseOutput(BaseModel):
@@ -99,16 +127,21 @@ class TranslationResponseOutput(BaseModel):
 
 class TranslationResponse(BaseModel):
     input: TranslationResponseInput
+    corrections: Optional[TranslationResponseCorrections] = None
     output: TranslationResponseOutput
     @staticmethod
     def from_dict(params:dict) -> "TranslationResponse":
+        corrections = params.get('corrections')
+        corrections_obj = TranslationResponseCorrections.from_dict(corrections) if corrections else {}
         return TranslationResponse(
             input = TranslationResponseInput.from_dict(params['input']),
+            corrections = corrections_obj,
             output = TranslationResponseOutput.from_dict(params['output']),
         )
     def to_dict(self) -> dict:
         return {
             'input': self.input.to_dict(),
+            'corrections': self.corrections.to_dict(),
             'output': self.output.to_dict(),
         }
 
